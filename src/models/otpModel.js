@@ -2,7 +2,7 @@ const {otpContainer} = require("../utils/db");
 
 const generateAndStoreOTP = async (email) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
-    const expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(); // 5d from now
+    const expiresAt = new Date(Date.now() +  10 * 60 * 1000).toISOString(); // 10m from now
 
     const otpRecord = {
       email,
@@ -12,7 +12,7 @@ const generateAndStoreOTP = async (email) => {
     };
 
     await otpContainer.items.create(otpRecord);
-
+    return otpRecord;
   };
 const getOtp = async (email, otp) => {
     

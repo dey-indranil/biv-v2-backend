@@ -1,36 +1,45 @@
 const { createUser, findUserByEmail, updateUserVerification } = require("../models/userModel");
 const { generateAndStoreOTP, markOtpUsed, getOtp } = require("../models/otpModel");
 const { generateToken } = require("../utils/jwt");
-const nodemailer = require('nodemailer');
+const { emailTransporter } = require("../utils/emailer");
 const bcrypt = require("bcryptjs");
 
 const express = require("express");
-const { get } = require("../app");
 
 const router = express.Router();
 
 const register = async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(email, password);
-    if (!email || !password ) return res.status(400).json({message:"All fields are required"});
-    
+    if (!email || !password) return res.status(400).json({ message: "All fields are required" });
+
     const existingUser = await findUserByEmail(email);
-    if (existingUser) return res.status(400).json({message:"User already exists"});
+    if (existingUser) return res.status(400).json({ message: "User already exists" });
 
-    
     // Generate OTP
-    await generateAndStoreOTP(email);
+    const otpRecord = await generateAndStoreOTP(email);
+    const otp = otpRecord.otp; // Assuming OTP is part of the returned record
 
-    //console.log(users);
-      const newUser = await createUser({ email, password, verified: false });
-      console.log(newUser);
-      res.status(201).json({ email: newUser.email, message: 'OTP sent to email. Please verify.'  });
-    } catch (error) {
-      res.status(500).send(error.message);
-    }
+    // Create the user
+    const newUser = await createUser({ email, password, verified: false });
+
+    // Send OTP email
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // Sender address
+      to: email, // Receiver's email
+      subject: 'Your OTP for Verification',
+      text: `Your OTP for email verification is ${otp}. It will expire in 10 minutes.`,
+    };
+
+    await emailTransporter.sendMail(mailOptions);
+
+    res.status(201).json({ email: newUser.email, message: 'OTP sent to email. Please verify.' });
+  } catch (error) {
+    console.error("Error in register:", error.message);
+    res.status(500).send(error.message);
   }
-;
+};
+
 
 const validateOtpLogic = async (email, otp) => {
   if (!email || !otp) return { status: 400, message: "Email and OTP are required" };
