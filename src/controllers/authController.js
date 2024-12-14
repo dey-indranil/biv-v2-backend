@@ -1,29 +1,27 @@
 const { createUser, findUserByEmail, updateUserVerification } = require("../models/userModel");
+const { generateAndStoreOTP, markOtpUsed, getOtp } = require("../models/otpModel");
 const { generateToken } = require("../utils/jwt");
 const nodemailer = require('nodemailer');
 const bcrypt = require("bcryptjs");
 
-let users = [];
-let otps = {};
+const express = require("express");
+const { get } = require("../app");
+
+const router = express.Router();
 
 const register = async (req, res) => {
   try {
     const { email, password } = req.body;
-    //console.log(email, password);
-    if (!email || !password ) return res.status(400).send("All fields are required");
+    console.log(email, password);
+    if (!email || !password ) return res.status(400).json({message:"All fields are required"});
     
     const existingUser = await findUserByEmail(email);
-    if (existingUser) return res.status(400).send("User already exists");
+    if (existingUser) return res.status(400).json({message:"User already exists"});
 
-      // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otps[email] = otp;
+    
+    // Generate OTP
+    await generateAndStoreOTP(email);
 
-    // Send OTP via email (simulate with console.log for now)
-    console.log(`OTP for ${email}: ${otp}`);
-
-    // Save user data temporarily
-    users.push({ email, password, verified: false });
     //console.log(users);
       const newUser = await createUser({ email, password, verified: false });
       console.log(newUser);
@@ -34,20 +32,55 @@ const register = async (req, res) => {
   }
 ;
 
+const validateOtpLogic = async (email, otp) => {
+  if (!email || !otp) return { status: 400, message: "Email and OTP are required" };
+
+  const resources = await getOtp(email, otp);
+  if (!resources) return { status: 400, message: "OTP not found" };
+  const otpRecord = resources[0];
+
+  if (!otpRecord) return { status: 400, message: "Invalid OTP" };
+
+  // Check if OTP is expired or already used
+  if (new Date() > new Date(otpRecord.expiresAt))
+    return { status: 400, message: "OTP has expired" };
+  if (otpRecord.used) return { status: 400, message: "OTP has already been used" };
+
+  // Mark OTP as used
+  otpRecord.used = true;
+  await markOtpUsed(otpRecord);
+
+  return { status: 200, message: "OTP validated successfully" };
+};
+
+const validateOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const result = await validateOtpLogic(email, otp);
+    return res.status(result.status).json({ message: result.message });
+  } catch (error) {
+    console.error("Error validating OTP:", error.message);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const verifyEmail = async (req, res) => {
   const { email, otp } = req.body;
-  console.log(email,otp);
-  if (otps[email] !== otp) {
-    return res.status(400).json({ message: 'Invalid OTP.' });
-  }
+  console.log(email, otp);
 
-  // Mark user as verified
-  try{
+  try {
+    const otpValidationResult = await validateOtpLogic(email, otp);
+    if (otpValidationResult.status !== 200) {
+      return res.status(otpValidationResult.status).json({ message: otpValidationResult.message });
+    }
+
     const user = await findUserByEmail(email);
     if (!user) return res.status(404).send("User not found");
+
     user.verified = true;
     const updatedUser = await updateUserVerification(user);
     console.log(updatedUser);
+
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found.' });
     }
@@ -56,11 +89,6 @@ const verifyEmail = async (req, res) => {
   } catch (error) {
     res.status(500).send(error.message);
   }
-
-  // Delete OTP
-  delete otps[email];
-  res.json({ message: 'Email verified successfully!' });
-  
 };
 
 const login = async (req, res) => {
@@ -81,4 +109,24 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login, verifyEmail };
+const generateOTP = async (req, res) =>{
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    //TODO
+    const otpRecord = await generateAndStoreOTP(email);
+    if (!otpRecord) return res.status(404).send("Problem generating OTP. Please retry.");
+
+    // Send OTP to user (via email/SMS)
+    console.log(`Generated OTP for ${email}: ${otp}`);
+
+    res.status(200).json({ message: "OTP generated successfully" });
+  } catch (error) {
+    console.error("Error generating OTP:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+module.exports = { register, login, verifyEmail, generateOTP, validateOTP };
