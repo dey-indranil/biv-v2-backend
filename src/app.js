@@ -4,6 +4,7 @@ const authRoutes = require("./routes/authRoutes");
 const cors = require("cors");
 
 const app = express();
+const listEndpoints = require('express-list-endpoints');
 
 const allowedOrigins = [
     "http://localhost:3000",
@@ -22,7 +23,13 @@ app.use(cors({
   }));
 
 
-
+console.log(listEndpoints(app));
+  
+app.get('/debug/endpoints', (req, res) => {
+    const endpoints = require('express-list-endpoints')(app);
+    res.json(endpoints);
+  });
+  
 
 app.use(bodyParser.json());
 app.use("/auth", authRoutes);
