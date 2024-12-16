@@ -2,13 +2,14 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const authRoutes = require("./routes/authRoutes");
 const cors = require("cors");
+require("dotenv").config();
 
 const app = express();
 const listEndpoints = require('express-list-endpoints');
 
 const allowedOrigins = [
     "http://localhost:3000",
-    "https://agreeable-meadow-03b389710.4.azurestaticapps.net",
+    process.env.FE_URL
   ];
   
 app.use(cors({
