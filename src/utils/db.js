@@ -9,5 +9,6 @@ const client = new CosmosClient({
 const database = client.database(process.env.COSMOS_DB_NAME);
 const userContainer = database.container("Users");
 const otpContainer = database.container("OTPs");
+const mediaMetadataContainer = database.container("MediaMetadata");
 
-module.exports = {userContainer, otpContainer};
+module.exports = {userContainer, otpContainer, mediaMetadataContainer};

@@ -1,6 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const authRoutes = require("./routes/authRoutes");
+const galleryRoutes = require('./routes/galleryRoutes');
 const cors = require("cors");
 require("dotenv").config();
 
@@ -34,5 +35,6 @@ app.get('/debug/endpoints', (req, res) => {
 
 app.use(bodyParser.json());
 app.use("/auth", authRoutes);
+app.use('/api/gallery', galleryRoutes);
 
 module.exports = app;
